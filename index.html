@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DevEditor v34 (RENAME FEATURE ENABLED)</title>
+    <title>DevEditor v30 - Gold Edition (Copy Name & Image)</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.23.4/ace.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js"></script>
@@ -13,88 +13,94 @@
     <style>
         :root {
             --bg-dark: #121212; --sidebar-bg: #1e1e1e; --accent: #4CAF50;
-            --border: #333; --text: #ddd; --header-bg: #252526; --danger: #ff4444;
-            --info: #2196F3; --warning: #ef6c00; --zip-color: #9c27b0;
+            --border: #333; --text: #ddd; --danger: #ff4444;
+            --info: #2196F3; --warning: #ef6c00; --zip-color: #9c27b0; --html-color: #e44d26;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg-dark); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-        /* LOADING */
-        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 30000; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        .spinner { width: 45px; height: 45px; border: 5px solid rgba(255,255,255,0.1); border-top: 5px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+        /* LOADING SCREEN */
+        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 99999; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+        .spinner { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1); border-top: 5px solid var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         /* TOOLBAR */
-        .toolbar { height: 60px; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--border); flex-shrink: 0; z-index: 100; }
+        .toolbar { height: 60px; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
         .group { display: flex; align-items: center; gap: 8px; }
         
         .view-btn-group { display: flex; gap: 4px; background: #111; padding: 4px; border-radius: 6px; }
-        .view-tgl { background: #333; border: none; color: #888; padding: 6px 12px; font-size: 10px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .view-tgl { background: #333; border: none; color: #888; padding: 6px 10px; font-size: 10px; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .view-tgl.active { background: var(--accent); color: white; }
 
-        button, label.upload-btn { padding: 8px 12px; cursor: pointer; color: white; border: none; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase; transition: 0.2s; }
+        .autorun-box { display: flex; align-items: center; gap: 5px; background: #111; padding: 6px 10px; border-radius: 4px; border: 1px solid #333; font-size: 10px; color: #888; font-weight: bold; cursor: pointer; }
+        .autorun-box input { cursor: pointer; accent-color: var(--accent); }
+
+        button, label.upload-btn { padding: 8px 12px; cursor: pointer; color: white; border: none; border-radius: 4px; font-size: 10px; font-weight: bold; transition: 0.2s; text-transform: uppercase; }
         .up-folder { background: var(--warning); }
         .up-file { background: var(--info); }
         .run-btn { background: var(--accent); }
-        .export-btn { background: var(--zip-color); }
         .zip-btn { background: var(--zip-color); }
-        button:hover, label.upload-btn:hover { filter: brightness(1.2); }
+        .html-btn { background: var(--html-color); }
         input[type="file"] { display: none; }
 
-        /* MAIN LAYOUT */
-        .main-container { display: flex; flex: 1; overflow: hidden; width: 100%; }
-        .panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; min-width: 0; background: var(--bg-dark); }
+        /* LAYOUT */
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .panel { height: 100%; display: flex; flex-direction: column; background: var(--bg-dark); }
         .panel.hidden { display: none !important; }
-        .gutter { background-color: #222; }
-        .gutter.gutter-horizontal { cursor: col-resize; width: 6px; }
+        .gutter { background-color: #222; cursor: col-resize; width: 6px; }
 
-        /* SIDEBAR & FILE ITEM */
-        .sidebar-header { padding: 12px; font-size: 11px; color: #aaa; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #252526; }
+        /* SIDEBAR */
+        .sidebar-header { padding: 12px; font-size: 11px; color: #aaa; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; background: #252526; }
         .file-list { flex: 1; overflow-y: auto; padding: 10px 5px; }
-        .section-title { font-size: 9px; color: #666; margin: 15px 5px 5px; text-transform: uppercase; font-weight: bold; border-bottom: 1px solid #333; padding-bottom: 4px; }
+        .section-title { font-size: 9px; color: #666; margin: 12px 5px 5px; text-transform: uppercase; font-weight: bold; border-bottom: 1px solid #333; }
         
-        .file-item { padding: 8px 10px; cursor: pointer; border-radius: 4px; font-size: 12px; display: flex; align-items: center; margin-bottom: 2px; color: #bbb; position: relative; }
+        .file-item { padding: 8px 10px; cursor: pointer; border-radius: 4px; font-size: 12px; display: flex; align-items: center; margin-bottom: 2px; color: #bbb; gap: 8px; }
         .file-item:hover { background: #333; color: white; }
         .file-item.active { background: #2d4a2e; border-left: 3px solid var(--accent); color: white; }
-        
         .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .file-actions { display: flex; gap: 8px; opacity: 0.5; transition: 0.2s; }
-        .file-item:hover .file-actions { opacity: 1; }
-        
-        .action-btn { cursor: pointer; font-size: 12px; padding: 2px 4px; }
-        .edit-btn:hover { color: var(--info); }
-        .del-btn:hover { color: var(--danger); }
+        .action-btns { display: flex; gap: 10px; opacity: 0; transition: 0.2s; }
+        .file-item:hover .action-btns { opacity: 1; }
 
         #editor { flex: 1; font-size: 14px; }
         iframe { flex: 1; border: none; background: white; }
 
         /* MODAL */
-        .modal { display: none; position: fixed; z-index: 21000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
-        .modal-content { max-width: 80%; background: #1e1e1e; padding: 25px; border-radius: 12px; text-align: center; }
+        .modal { display: none; position: fixed; z-index: 90000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
+        .modal-content { max-width: 80%; text-align: center; background: #1e1e1e; padding: 25px; border-radius: 12px; border: 1px solid #444; }
+        .modal-content img { max-width: 100%; max-height: 60vh; margin-bottom: 20px; border: 1px solid #333; display: block; margin-left: auto; margin-right: auto; }
+        .modal-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .modal-actions button { margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <div id="loading-overlay"><div class="spinner"></div><p id="loading-text" style="color:white; margin-top:15px; font-size:12px;">MENGOLAH DATA...</p></div>
+    <div id="loading-overlay" onclick="hideLoading()">
+        <div class="spinner"></div>
+        <p id="loading-text" style="color:white; margin-top:15px; font-size:12px;">MENGOLAH DATA...</p>
+    </div>
 
     <div id="imageModal" class="modal" onclick="this.style.display='none'">
         <div class="modal-content" onclick="event.stopPropagation()">
-            <img id="previewImg" style="max-width:100%; max-height:60vh; border:2px solid var(--accent); margin-bottom:15px;">
-            <p id="previewName" style="color:white; margin-bottom:15px; font-weight:bold;"></p>
-            <button onclick="copyAssetName()" style="background:var(--info)">SALIN NAMA</button>
+            <img id="previewImg" src="">
+            <p id="previewName" style="color:white; margin-bottom: 20px; font-size: 13px; font-weight: bold;"></p>
+            <div class="modal-actions">
+                <button onclick="copyImageToClipboard()" style="background:var(--info)">📋 SALIN GAMBAR</button>
+                <button onclick="copyImageName()" style="background:var(--warning)">✍️ SALIN NAMA</button>
+                <button onclick="document.getElementById('imageModal').style.display='none'" style="background:#444">TUTUP</button>
+            </div>
         </div>
     </div>
 
     <div class="toolbar">
         <div class="group">
-            <h3 style="color:var(--accent);">v34</h3>
+            <h3 style="color:var(--accent); margin-right:10px;">v30</h3>
             <div class="view-btn-group">
                 <button class="view-tgl active" id="btn-side" onclick="toggleView('side')">📁 Side</button>
                 <button class="view-tgl active" id="btn-edit" onclick="toggleView('edit')">💻 Code</button>
                 <button class="view-tgl active" id="btn-prev" onclick="toggleView('prev')">🌐 Prev</button>
             </div>
-            <select id="theme-selector" class="view-tgl" onchange="changeTheme(this.value)">
+            <select id="theme-selector" style="background:#333; color:white; border:none; padding:5px; font-size:10px; border-radius:4px;" onchange="editor.setTheme(this.value)">
                 <option value="ace/theme/monokai">Monokai</option>
                 <option value="ace/theme/dracula">Dracula</option>
                 <option value="ace/theme/github">GitHub</option>
@@ -102,184 +108,186 @@
         </div>
 
         <div class="group">
-            <div style="font-size:10px; color:#777; background:#111; padding:7px 8px; border-radius:4px; border:1px solid #333;">
-                <input type="checkbox" id="auto-run-check" checked> Live
-            </div>
+            <label class="autorun-box">
+                <input type="checkbox" id="auto-run-check" checked> AUTO RUN
+            </label>
             <label class="upload-btn up-folder">📂 FOLDER <input type="file" id="folder-up" webkitdirectory multiple></label>
             <label class="upload-btn up-file">📄 FILE <input type="file" id="file-up" multiple></label>
             <button onclick="runCode()" class="run-btn">RUN ▶</button>
-            <button onclick="downloadHTML()" class="export-btn">HTML</button>
             <button onclick="exportToZip()" class="zip-btn">ZIP 📦</button>
+            <button onclick="downloadSingleHTML()" class="html-btn">HTML 🌐</button>
         </div>
     </div>
 
     <div class="main-container">
-        <div id="view-side" class="panel">
-            <div class="sidebar-header">EXPLORER <span onclick="createNewFile()" style="cursor:pointer; color:var(--accent); font-weight:bold;">+ NEW</span></div>
+        <div id="view-side" class="panel" style="width: 250px;">
+            <div class="sidebar-header">EXPLORER <span onclick="createNewFile()" style="cursor:pointer; color:var(--accent);">+ NEW</span></div>
             <div class="file-list">
-                <div class="section-title">Source Codes</div>
+                <div class="section-title">Codes</div>
                 <div id="list-code"></div>
-                <div class="section-title">Assets Manager</div>
+                <div class="section-title">Assets</div>
                 <div id="list-assets"></div>
             </div>
         </div>
-        <div id="view-edit" class="panel"><div id="editor"></div></div>
-        <div id="view-prev" class="panel"><iframe id="output-frame"></iframe></div>
+        <div id="view-edit" class="panel" style="flex: 1;"><div id="editor"></div></div>
+        <div id="view-prev" class="panel" style="flex: 1;"><iframe id="output-frame"></iframe></div>
     </div>
 
     <script>
-        let projectFiles = JSON.parse(localStorage.getItem('v34_project')) || { "index.html": "<h1>Fitur Rename Aktif!</h1><p>Klik ikon pensil di sidebar untuk ubah nama file.</p>" };
-        let assets = JSON.parse(localStorage.getItem('v34_assets')) || {};
-        let activeFile = Object.keys(projectFiles)[0];
+        let projectFiles = JSON.parse(localStorage.getItem('v30_project')) || { "index.html": "<h1>Ready!</h1>" };
+        let assets = JSON.parse(localStorage.getItem('v30_assets')) || {};
+        let activeFile = Object.keys(projectFiles)[0] || "index.html";
         let splitInstance = null;
 
         const editor = ace.edit("editor");
         editor.setTheme("ace/theme/monokai");
 
-        const ro = new ResizeObserver(() => { editor.resize(); editor.renderer.updateFull(); });
-        ro.observe(document.getElementById('view-edit'));
-
-        function showLoading(m) { document.getElementById('loading-text').innerText = m; document.getElementById('loading-overlay').style.display = 'flex'; }
-        function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
-
-        // --- RENAME FEATURE ---
-        function renameFile(oldName) {
-            const newName = prompt("Masukkan nama baru:", oldName);
-            if (!newName || newName === oldName) return;
-            
-            if (projectFiles[newName] || assets[newName]) {
-                alert("Nama file sudah ada!");
-                return;
-            }
-
-            if (projectFiles[oldName] !== undefined) {
-                projectFiles[newName] = projectFiles[oldName];
-                delete projectFiles[oldName];
-                if (activeFile === oldName) activeFile = newName;
-            } else if (assets[oldName] !== undefined) {
-                assets[newName] = assets[oldName];
-                delete assets[oldName];
-            }
-            
-            updateFileList();
-            runCode();
+        function showLoading(msg) {
+            document.getElementById('loading-text').innerText = msg.toUpperCase();
+            document.getElementById('loading-overlay').style.display = 'flex';
         }
 
-        // --- EXPORT ZIP ---
-        async function exportToZip() {
-            showLoading("MENGEMAS ZIP...");
-            const zip = new JSZip();
-            Object.keys(projectFiles).forEach(n => zip.file(n, projectFiles[n]));
-            const f = zip.folder("assets");
-            Object.keys(assets).forEach(n => f.file(n, assets[n].split(',')[1], {base64: true}));
-            const content = await zip.generateAsync({type:"blob"});
-            saveAs(content, "project.zip");
-            hideLoading();
-        }
-
-        // --- CORE LOGIC ---
-        function runCode() {
-            projectFiles[activeFile] = editor.getValue();
-            let h = projectFiles["index.html"] || "";
-            let c = ""; let j = "";
-            Object.keys(projectFiles).forEach(n => {
-                if(n.endsWith('.css')) c += projectFiles[n] + "\n";
-                if(n.endsWith('.js')) j += projectFiles[n] + "\n";
-            });
-            Object.keys(assets).forEach(n => h = h.split(n).join(assets[n]));
-            const out = `<html><head><style>${c}</style></head><body>${h}<script>${j}<\/script></body></html>`;
-            const frame = document.getElementById("output-frame").contentWindow.document;
-            frame.open(); frame.write(out); frame.close();
-        }
-
-        editor.on('change', () => {
-            if(document.getElementById('auto-run-check').checked) {
-                clearTimeout(window.at); window.at = setTimeout(runCode, 500);
-            }
-        });
-
-        function toggleView(t) {
-            document.getElementById('view-'+t).classList.toggle('hidden');
-            document.getElementById('btn-'+t).classList.toggle('active');
-            initSplit();
-        }
-
-        function initSplit() {
-            if (splitInstance) { splitInstance.destroy(); document.querySelectorAll('.gutter').forEach(g => g.remove()); }
-            const vis = ['#view-side', '#view-edit', '#view-prev'].filter(id => !document.querySelector(id).classList.contains('hidden'));
-            if (vis.length > 1) splitInstance = Split(vis, { sizes: vis.length===3?[20,40,40]:[30,70], gutterSize:6, onDrag:()=>editor.resize() });
-            editor.resize();
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
         }
 
         async function handleUpload(e) {
             const files = e.target.files;
-            showLoading("UPLOADING...");
+            if(!files.length) return;
+            showLoading("Memproses " + files.length + " File...");
+            const timer = setTimeout(() => finalizeUpload(e), 4000);
+            let count = 0;
             for (let file of files) {
+                const name = (file.webkitRelativePath || file.name).replace(/\//g, '_');
                 await new Promise(res => {
                     const reader = new FileReader();
-                    const name = (file.webkitRelativePath || file.name).replace(/\//g, '_');
                     reader.onload = (ev) => {
-                        file.type.startsWith('image/') ? assets[name]=ev.target.result : projectFiles[name]=ev.target.result;
+                        if(file.type.startsWith('image/')) assets[name] = ev.target.result;
+                        else projectFiles[name] = ev.target.result;
                         res();
                     };
+                    reader.onerror = res;
                     file.type.startsWith('image/') ? reader.readAsDataURL(file) : reader.readAsText(file);
                 });
+                count++;
+                if(count === files.length) { clearTimeout(timer); finalizeUpload(e); }
             }
-            updateFileList(); runCode(); hideLoading();
+        }
+
+        function finalizeUpload(e) {
+            updateFileList();
+            if(!projectFiles[activeFile]) activeFile = Object.keys(projectFiles)[0];
+            switchFile(activeFile);
+            runCode();
+            hideLoading();
+            e.target.value = "";
+        }
+
+        async function copyImageToClipboard() {
+            const imgUrl = document.getElementById('previewImg').src;
+            try {
+                const response = await fetch(imgUrl);
+                const blob = await response.blob();
+                await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+                alert("Gambar disalin!");
+            } catch (err) { alert("Gagal menyalin gambar."); }
+        }
+
+        // FITUR BARU: SALIN NAMA GAMBAR
+        function copyImageName() {
+            const name = document.getElementById('previewName').innerText;
+            navigator.clipboard.writeText(name).then(() => {
+                alert("Nama file '" + name + "' berhasil disalin!");
+            });
+        }
+
+        function downloadSingleHTML() {
+            showLoading("Exporting...");
+            if(activeFile) projectFiles[activeFile] = editor.getValue();
+            let h = projectFiles["index.html"] || "";
+            let c = ""; let j = "";
+            Object.keys(projectFiles).forEach(n => {
+                if(n.endsWith('.css')) c += `/* ${n} */\n${projectFiles[n]}\n`;
+                if(n.endsWith('.js')) j += `// ${n}\n${projectFiles[n]}\n`;
+            });
+            Object.keys(assets).forEach(n => h = h.split(n).join(assets[n]));
+            const finalDoc = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${c}</style></head><body>${h}<script>${j}<\/script></body></html>`;
+            saveAs(new Blob([finalDoc], {type: "text/html"}), "index_full.html");
+            hideLoading();
         }
 
         function updateFileList() {
-            const cl = document.getElementById('list-code'); const al = document.getElementById('list-assets');
+            const cl = document.getElementById('list-code');
+            const al = document.getElementById('list-assets');
             cl.innerHTML = ''; al.innerHTML = '';
-            
-            const createItem = (n, isAsset) => {
+            Object.keys(projectFiles).sort().forEach(n => {
                 const d = document.createElement('div');
                 d.className = `file-item ${n===activeFile?'active':''}`;
-                d.innerHTML = `
-                    <span class="file-name" onclick="${isAsset?`openPreview('${n}')`:`switchFile('${n}')`}">
-                        ${isAsset?'🖼️':'📄'} ${n}
-                    </span>
-                    <div class="file-actions">
-                        <span class="action-btn edit-btn" onclick="renameFile('${n}')">✎</span>
-                        <span class="action-btn del-btn" onclick="${isAsset?`deleteAsset('${n}')`:`deleteFile('${n}')`}">✕</span>
-                    </div>
-                `;
-                return d;
-            };
-
-            Object.keys(projectFiles).forEach(n => cl.appendChild(createItem(n, false)));
-            Object.keys(assets).forEach(n => al.appendChild(createItem(n, true)));
-            
-            localStorage.setItem('v34_project', JSON.stringify(projectFiles));
-            localStorage.setItem('v34_assets', JSON.stringify(assets));
+                d.innerHTML = `<span class="file-name" onclick="switchFile('${n}')">📄 ${n}</span>
+                    <div class="action-btns"><span style="color:var(--info)" onclick="renameFile('${n}')">📝</span>
+                    <span style="color:var(--danger)" onclick="deleteFile('${n}')">✕</span></div>`;
+                cl.appendChild(d);
+            });
+            Object.keys(assets).sort().forEach(n => {
+                const d = document.createElement('div');
+                d.className = 'file-item';
+                d.innerHTML = `<span class="file-name" onclick="openPreview('${n}')">🖼️ ${n}</span>
+                    <div class="action-btns"><span style="color:var(--danger)" onclick="deleteAsset('${n}')">✕</span></div>`;
+                al.appendChild(d);
+            });
+            localStorage.setItem('v30_project', JSON.stringify(projectFiles));
+            localStorage.setItem('v30_assets', JSON.stringify(assets));
         }
 
         function switchFile(n) {
-            projectFiles[activeFile] = editor.getValue(); activeFile = n;
+            if(!projectFiles[n]) return;
+            projectFiles[activeFile] = editor.getValue();
+            activeFile = n;
             const ext = n.split('.').pop();
-            editor.session.setMode("ace/mode/" + (ext==='js'?'javascript':(ext==='css'?'css':'html')));
-            editor.setValue(projectFiles[n], 1); updateFileList();
+            editor.session.setMode("ace/mode/" + (ext==='js'?'javascript':ext==='css'?'css':'html'));
+            editor.setValue(projectFiles[n], 1);
+            updateFileList();
         }
 
-        function openPreview(n) { 
-            document.getElementById('previewImg').src = assets[n]; 
-            document.getElementById('previewName').innerText = n;
-            document.getElementById('imageModal').style.display='flex'; 
+        function runCode() {
+            if(activeFile) projectFiles[activeFile] = editor.getValue();
+            let h = projectFiles["index.html"] || "";
+            let c = ""; let j = "";
+            Object.keys(projectFiles).forEach(n => {
+                if(n.endsWith('.css')) c += projectFiles[n];
+                if(n.endsWith('.js')) j += projectFiles[n];
+            });
+            Object.keys(assets).forEach(n => h = h.split(n).join(assets[n]));
+            const frame = document.getElementById("output-frame").contentWindow.document;
+            frame.open(); frame.write(`<html><head><style>${c}</style></head><body>${h}<script>${j}<\/script></body></html>`); frame.close();
         }
 
-        function changeTheme(v) { editor.setTheme(v); localStorage.setItem('v34_theme', v); }
-        function copyAssetName() { navigator.clipboard.writeText(document.getElementById('previewName').innerText); alert("Nama disalin!"); }
-        function createNewFile() { const n = prompt("Nama:"); if(n) { projectFiles[n]=""; switchFile(n); } }
-        function deleteFile(n) { if(confirm("Hapus?")) { delete projectFiles[n]; switchFile(Object.keys(projectFiles)[0]); } }
+        editor.on('change', () => {
+            if(document.getElementById('auto-run-check').checked) {
+                clearTimeout(window.at);
+                window.at = setTimeout(runCode, 600);
+            }
+        });
+
+        async function exportToZip() {
+            const zip = new JSZip();
+            Object.keys(projectFiles).forEach(n => zip.file(n, projectFiles[n]));
+            const af = zip.folder("assets");
+            Object.keys(assets).forEach(n => af.file(n, assets[n].split(',')[1], {base64: true}));
+            const content = await zip.generateAsync({type:"blob"});
+            saveAs(content, "project_v30.zip");
+        }
+
+        function renameFile(old) { const n = prompt("Nama baru:", old); if(n && !projectFiles[n]) { projectFiles[n] = projectFiles[old]; delete projectFiles[old]; activeFile = n; updateFileList(); } }
+        function deleteFile(n) { if(confirm("Hapus?")) { delete projectFiles[n]; activeFile = Object.keys(projectFiles)[0]; updateFileList(); switchFile(activeFile); } }
         function deleteAsset(n) { if(confirm("Hapus?")) { delete assets[n]; updateFileList(); runCode(); } }
-        function downloadHTML() { runCode(); const b = new Blob([document.getElementById("output-frame").contentWindow.document.documentElement.outerHTML], {type:"text/html"}); saveAs(b, "project.html"); }
-
+        function createNewFile() { const n = prompt("Nama file:"); if(n) { projectFiles[n] = ""; switchFile(n); } }
+        function toggleView(t) { document.getElementById('view-' + t).classList.toggle('hidden'); document.getElementById('btn-' + t).classList.toggle('active'); initSplit(); }
+        function initSplit() { if (splitInstance) { splitInstance.destroy(); document.querySelectorAll('.gutter').forEach(g => g.remove()); } const views = ['#view-side', '#view-edit', '#view-prev'].filter(id => !document.querySelector(id).classList.contains('hidden')); if (views.length > 1) splitInstance = Split(views, { sizes: [20, 40, 40], gutterSize: 6, onDrag: () => editor.resize() }); editor.resize(); }
+        function openPreview(n) { document.getElementById('previewImg').src = assets[n]; document.getElementById('previewName').innerText = n; document.getElementById('imageModal').style.display = 'flex'; }
         document.getElementById('folder-up').addEventListener('change', handleUpload);
         document.getElementById('file-up').addEventListener('change', handleUpload);
-        window.onload = () => {
-            const t = localStorage.getItem('v34_theme'); if(t) { editor.setTheme(t); document.getElementById('theme-selector').value = t; }
-            updateFileList(); switchFile(activeFile); initSplit(); runCode();
-        };
+        window.onload = () => { updateFileList(); switchFile(activeFile); initSplit(); runCode(); };
     </script>
 </body>
 </html>
