@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevEditor v30 (Export ZIP Edition)</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.23.4/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #121212; --sidebar-bg: #1e1e1e; --accent: #4CAF50;
+            --border: #333; --text: #ddd; --header-bg: #252526; --danger: #ff4444;
+            --info: #2196F3; --warning: #ef6c00; --zip-color: #9c27b0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg-dark); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* LOADING SCREEN */
+        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 20000; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .spinner { width: 45px; height: 45px; border: 5px solid rgba(255,255,255,0.1); border-top: 5px solid var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* MODAL PREVIEW */
+        .modal { display: none; position: fixed; z-index: 21000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
+        .modal-content { max-width: 85%; max-height: 85%; text-align: center; background: #1e1e1e; padding: 25px; border-radius: 12px; border: 1px solid var(--border); }
+        .modal-content img { max-width: 100%; max-height: 60vh; border: 2px solid var(--accent); margin-bottom: 20px; border-radius: 4px; }
+
+        /* TOOLBAR */
+        .toolbar { height: 60px; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--border); flex-shrink: 0; z-index: 100; }
+        .group { display: flex; align-items: center; gap: 8px; }
+        
+        .view-btn-group { display: flex; gap: 4px; background: #111; padding: 4px; border-radius: 6px; }
+        .view-tgl { background: #333; border: none; color: #888; padding: 6px 10px; font-size: 10px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        .view-tgl.active { background: var(--accent); color: white; }
+
+        .theme-select { background: #333; color: white; border: 1px solid var(--border); padding: 5px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+
+        button, label.upload-btn { padding: 8px 12px; cursor: pointer; color: white; border: none; border-radius: 4px; font-size: 10px; font-weight: bold; transition: 0.2s; text-transform: uppercase; }
+        .up-folder { background: var(--warning); }
+        .up-file { background: var(--info); }
+        .run-btn { background: var(--accent); }
+        .export-btn { background: #607d8b; }
+        .zip-btn { background: var(--zip-color); }
+        button:hover, label.upload-btn:hover { filter: brightness(1.2); }
+        input[type="file"] { display: none; }
+
+        /* MAIN LAYOUT */
+        .main-container { display: flex; flex: 1; overflow: hidden; width: 100%; height: 100%; }
+        .panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; min-width: 0; background: var(--bg-dark); }
+        .panel.hidden { display: none !important; }
+
+        .gutter { background-color: #222; }
+        .gutter.gutter-horizontal { cursor: col-resize; width: 6px; }
+
+        /* SIDEBAR */
+        .sidebar-header { padding: 12px; font-size: 11px; color: #aaa; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #252526; }
+        .file-list { flex: 1; overflow-y: auto; padding: 10px 5px; }
+        .section-title { font-size: 9px; color: #666; margin: 15px 5px 5px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+        .file-item { padding: 8px 10px; cursor: pointer; border-radius: 4px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; color: #bbb; }
+        .file-item:hover { background: #333; color: white; }
+        .file-item.active { background: #2d4a2e; border-left: 3px solid var(--accent); color: white; }
+        .del-btn { color: #555; font-size: 14px; padding: 0 5px; }
+        .del-btn:hover { color: var(--danger); }
+
+        #editor { flex: 1; font-size: 14px; }
+        iframe { flex: 1; border: none; background: white; }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay"><div class="spinner"></div><p id="loading-text" style="color:white; margin-top:15px; font-size:12px;">MENGOLAH DATA...</p></div>
+
+    <div id="imageModal" class="modal" onclick="this.style.display='none'">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <img id="previewImg" src="">
+            <p id="previewName" style="color:white; margin-bottom: 20px; font-weight:bold;"></p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button onclick="copyAssetName()" style="background:var(--info)">SALIN NAMA</button>
+                <button onclick="document.getElementById('imageModal').style.display='none'" style="background:#444">TUTUP</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <div class="group">
+            <h3 style="color:var(--accent); margin-right:5px;">v30</h3>
+            <div class="view-btn-group">
+                <button class="view-tgl active" id="btn-side" onclick="toggleView('side')">📁 Side</button>
+                <button class="view-tgl active" id="btn-edit" onclick="toggleView('edit')">💻 Code</button>
+                <button class="view-tgl active" id="btn-prev" onclick="toggleView('prev')">🌐 Prev</button>
+            </div>
+            <select id="theme-selector" class="theme-select" onchange="changeTheme(this.value)">
+                <option value="ace/theme/monokai">Monokai</option>
+                <option value="ace/theme/dracula">Dracula</option>
+                <option value="ace/theme/github">GitHub</option>
+            </select>
+        </div>
+
+        <div class="group">
+            <div style="font-size:10px; color:#777; background:#111; padding:7px 8px; border-radius:4px; border:1px solid #333;">
+                <input type="checkbox" id="auto-run-check" checked> Live
+            </div>
+            <label class="upload-btn up-folder">📂 FOLDER <input type="file" id="folder-up" webkitdirectory multiple></label>
+            <label class="upload-btn up-file">📄 FILE <input type="file" id="file-up" multiple></label>
+            <button onclick="runCode()" class="run-btn">RUN ▶</button>
+            <button onclick="downloadHTML()" class="export-btn">HTML</button>
+            <button onclick="exportToZip()" class="zip-btn">ZIP 📦</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div id="view-side" class="panel">
+            <div class="sidebar-header">EXPLORER <span onclick="createNewFile()" style="cursor:pointer; color:var(--accent);">+ NEW</span></div>
+            <div class="file-list">
+                <div class="section-title">Source Codes</div>
+                <div id="list-code"></div>
+                <div class="section-title">Assets Manager</div>
+                <div id="list-assets"></div>
+            </div>
+        </div>
+        <div id="view-edit" class="panel"><div id="editor"></div></div>
+        <div id="view-prev" class="panel"><iframe id="output-frame"></iframe></div>
+    </div>
+
+    <script>
+        let projectFiles = JSON.parse(localStorage.getItem('v30_project')) || { "index.html": "<h1>Fitur ZIP Berhasil!</h1>\n<p>Klik tombol ZIP di pojok kanan atas untuk mendownload seluruh proyek.</p>" };
+        let assets = JSON.parse(localStorage.getItem('v30_assets')) || {};
+        let activeFile = Object.keys(projectFiles)[0];
+        let splitInstance = null;
+
+        const editor = ace.edit("editor");
+        editor.setTheme("ace/theme/monokai");
+
+        function showLoading(msg) { 
+            document.getElementById('loading-text').innerText = msg || "MENGOLAH DATA...";
+            document.getElementById('loading-overlay').style.display = 'flex'; 
+        }
+        function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
+
+        // --- NEW: EXPORT ZIP FEATURE ---
+        async function exportToZip() {
+            showLoading("MENGEMAS ZIP...");
+            const zip = new JSZip();
+            
+            // Masukkan file kode
+            Object.keys(projectFiles).forEach(name => {
+                zip.file(name, projectFiles[name]);
+            });
+
+            // Masukkan assets (Gambar)
+            const assetFolder = zip.folder("assets");
+            Object.keys(assets).forEach(name => {
+                const base64Data = assets[name].split(',')[1];
+                assetFolder.file(name, base64Data, {base64: true});
+            });
+
+            const content = await zip.generateAsync({type:"blob"});
+            saveAs(content, "my-project-dev.zip");
+            hideLoading();
+        }
+
+        // --- TOGGLE SYSTEM ---
+        function initSplit() {
+            if (splitInstance) {
+                splitInstance.destroy();
+                document.querySelectorAll('.gutter').forEach(g => g.remove());
+            }
+            const all = ['#view-side', '#view-edit', '#view-prev'];
+            const visible = all.filter(id => !document.querySelector(id).classList.contains('hidden'));
+            if (visible.length > 1) {
+                splitInstance = Split(visible, { sizes: visible.length === 3 ? [20, 40, 40] : [30, 70], gutterSize: 6, onDrag: () => editor.resize() });
+            }
+            editor.resize();
+        }
+
+        function toggleView(t) {
+            document.getElementById('view-'+t).classList.toggle('hidden');
+            document.getElementById('btn-'+t).classList.toggle('active');
+            initSplit();
+        }
+
+        // --- RUN & PREVIEW ---
+        function runCode() {
+            projectFiles[activeFile] = editor.getValue();
+            let h = projectFiles["index.html"] || "";
+            let c = ""; let j = "";
+            Object.keys(projectFiles).forEach(n => {
+                if(n.endsWith('.css')) c += projectFiles[n] + "\n";
+                if(n.endsWith('.js')) j += projectFiles[n] + "\n";
+            });
+            Object.keys(assets).forEach(n => {
+                const reg = new RegExp(n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                h = h.replace(reg, assets[n]);
+            });
+            const out = `<html><head><style>${c}</style></head><body>${h}<script>${j}<\/script></body></html>`;
+            const frame = document.getElementById("output-frame").contentWindow.document;
+            frame.open(); frame.write(out); frame.close();
+        }
+
+        editor.on('change', () => {
+            if(document.getElementById('auto-run-check').checked) {
+                clearTimeout(window.at); window.at = setTimeout(runCode, 500);
+            }
+        });
+
+        // --- FILE & UPLOAD ---
+        async function handleUpload(e) {
+            const files = e.target.files;
+            if(!files.length) return;
+            showLoading("MENGUNGGAH...");
+            try {
+                for (let file of files) {
+                    await new Promise(resolve => {
+                        const reader = new FileReader();
+                        const name = (file.webkitRelativePath || file.name).replace(/\//g, '_');
+                        reader.onload = (ev) => {
+                            if(file.type.startsWith('image/')) assets[name] = ev.target.result;
+                            else projectFiles[name] = ev.target.result;
+                            resolve();
+                        };
+                        file.type.startsWith('image/') ? reader.readAsDataURL(file) : reader.readAsText(file);
+                    });
+                }
+                updateFileList(); runCode();
+            } finally { setTimeout(hideLoading, 400); }
+        }
+
+        function updateFileList() {
+            const cl = document.getElementById('list-code');
+            const al = document.getElementById('list-assets');
+            cl.innerHTML = ''; al.innerHTML = '';
+            Object.keys(projectFiles).forEach(n => {
+                const d = document.createElement('div');
+                d.className = `file-item ${n===activeFile?'active':''}`;
+                d.innerHTML = `<span onclick="switchFile('${n}')">📄 ${n}</span><span class="del-btn" onclick="deleteFile('${n}')">✕</span>`;
+                cl.appendChild(d);
+            });
+            Object.keys(assets).forEach(n => {
+                const d = document.createElement('div');
+                d.className = 'file-item';
+                d.innerHTML = `<span onclick="openPreview('${n}')">🖼️ ${n}</span><span class="del-btn" onclick="deleteAsset('${n}')">✕</span>`;
+                al.appendChild(d);
+            });
+            localStorage.setItem('v30_project', JSON.stringify(projectFiles));
+            localStorage.setItem('v30_assets', JSON.stringify(assets));
+        }
+
+        function switchFile(n) {
+            projectFiles[activeFile] = editor.getValue();
+            activeFile = n;
+            const ext = n.split('.').pop();
+            editor.session.setMode("ace/mode/" + (ext==='js'?'javascript':(ext==='css'?'css':'html')));
+            editor.setValue(projectFiles[n], 1);
+            updateFileList();
+        }
+
+        function openPreview(n) {
+            document.getElementById('previewImg').src = assets[n];
+            document.getElementById('previewName').innerText = n;
+            document.getElementById('imageModal').style.display = 'flex';
+        }
+
+        // --- UTILS ---
+        function changeTheme(v) { editor.setTheme(v); localStorage.setItem('v30_theme', v); }
+        function copyAssetName() { navigator.clipboard.writeText(document.getElementById('previewName').innerText); alert("Nama disalin!"); }
+        function createNewFile() { const n = prompt("Nama file:"); if(n) { projectFiles[n]=""; switchFile(n); } }
+        function deleteFile(n) { if(confirm("Hapus?")) { delete projectFiles[n]; switchFile(Object.keys(projectFiles)[0] || ""); } }
+        function deleteAsset(n) { if(confirm("Hapus?")) { delete assets[n]; updateFileList(); runCode(); } }
+        function downloadHTML() { runCode(); const b = new Blob([document.getElementById("output-frame").contentWindow.document.documentElement.outerHTML], {type:"text/html"}); saveAs(b, "project.html"); }
+
+        document.getElementById('folder-up').addEventListener('change', handleUpload);
+        document.getElementById('file-up').addEventListener('change', handleUpload);
+        
+        window.onload = () => {
+            const t = localStorage.getItem('v30_theme');
+            if(t) { editor.setTheme(t); document.getElementById('theme-selector').value = t; }
+            updateFileList(); switchFile(activeFile); initSplit(); runCode();
+        };
+    </script>
+</body>
+</html>
